@@ -56,21 +56,21 @@ def setup_wifi_and_time():
     tz = os.getenv("TZ")
     ssid = os.getenv("CIRCUITPY_WIFI_SSID")
     password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
-    
+
     if not ssid or not password:
         print("Wifi config not found in settings.toml. Time not set.")
         return
-    
+
     print(f"Connecting to {ssid}")
-    
+
     try:
         wifi.radio.connect(ssid, password)
-        
+
         if wifi.radio.connected:
             print(f"Connected to {ssid}!")
             print("My IP address is", wifi.radio.ipv4_address)
             pool = socketpool.SocketPool(wifi.radio)
-            
+
             # Get timezone offset if not manually set
             if utc_offset is None and tz:
                 try:
@@ -86,7 +86,7 @@ def setup_wifi_and_time():
                 utc_offset = int(utc_offset)
             else:
                 utc_offset = 0
-            
+
             # Synchronize time via NTP
             try:
                 ntp = adafruit_ntp.NTP(
@@ -98,7 +98,7 @@ def setup_wifi_and_time():
                 print(f"NTP sync failed: {e}")
         else:
             print("Wifi failed to connect. Time not set.")
-    
+
     except Exception as e:
         print(f"WiFi connection error: {e}")
 
@@ -133,7 +133,7 @@ def update_battery_status():
     """Update battery status every 10 seconds."""
     global last_recorded_time
     current_time = time.time()
-    
+
     if current_time - last_recorded_time >= 10:
         battery_voltage = get_battery_voltage()
         last_recorded_time = current_time
@@ -144,19 +144,19 @@ def is_sd_card_available():
     """Check if SD card is actually mounted and writable."""
     try:
         import os
-        
+
         # Check if /sd directory exists
         root_contents = os.listdir('/')
-        
+
         if 'sd' not in root_contents:
             return False
-        
+
         # Try to list SD card contents
         try:
             sd_contents = os.listdir('/sd')
         except OSError:
             return False
-        
+
         # Try to get filesystem stats
         try:
             stat = os.statvfs('/sd')
@@ -171,7 +171,7 @@ def is_sd_card_available():
                 return True
             except OSError:
                 return False
-            
+
     except Exception:
         return False
 
@@ -191,7 +191,7 @@ def safe_capture_operation(capture_func, *args, **kwargs):
     if not is_sd_card_available():
         show_capture_status(preview_only=True)
         return False
-    
+
     try:
         result = capture_func(*args, **kwargs)
         show_capture_status(success=True)
@@ -222,37 +222,37 @@ def handle_gameboy_mode():
 def handle_timelapse_mode():
     """Handle time-lapse photography mode."""
     global timelapse_remaining, timelapse_timestamp
-    
+
     if timelapse_remaining is None:
         pycam.timelapsestatus_label.text = "STOP"
     else:
         timelapse_remaining = timelapse_timestamp - time.time()
         pycam.timelapsestatus_label.text = f"{timelapse_remaining}s /    "
-    
+
     # Manually updating the label text ensures proper re-painting
     pycam.timelapse_rate_label.text = pycam.timelapse_rate_label.text
     pycam.timelapse_submode_label.text = pycam.timelapse_submode_label.text
-    
+
     # Only preview in high power mode or when stopped
     if (timelapse_remaining is None) or (pycam.timelapse_submode_label.text == "HiPwr"):
         pycam.blit(pycam.continuous_capture())
-    
+
     # Adjust display brightness for low power mode
     if pycam.timelapse_submode_label.text == "LowPwr" and (timelapse_remaining is not None):
         pycam.display.brightness = 0.05
     else:
         pycam.display.brightness = 1
-    
+
     pycam.display.refresh()
-    
+
     # Check if it's time to capture
     if timelapse_remaining is not None and timelapse_remaining <= 0:
         pycam.blit(pycam.continuous_capture())
         # pycam.tone(200, 0.1)  # uncomment to add beep when photo is taken
-        
+
         pycam.display_message("Snap!", color=0x0000FF)
         safe_capture_operation(pycam.capture_jpeg)
-        
+
         pycam.live_preview_mode()
         pycam.display.refresh()
         pycam.blit(pycam.continuous_capture())
@@ -276,10 +276,10 @@ def handle_shutter_button():
         print(pycam.autofocus_status)
         pycam.autofocus()
         print(pycam.autofocus_status)
-    
+
     if pycam.shutter.short_count:
         print("Shutter released")
-        
+
         if pycam.mode_text == "STOP":
             handle_stop_motion_capture()
         elif pycam.mode_text == "GBOY":
@@ -293,7 +293,7 @@ def handle_stop_motion_capture():
     """Capture frame for stop motion animation."""
     pycam.capture_into_bitmap(last_frame)
     pycam.stop_motion_frame += 1
-    
+
     pycam.display_message("Snap!", color=0x0000FF)
     safe_capture_operation(pycam.capture_jpeg)
     pycam.live_preview_mode()
@@ -311,19 +311,19 @@ def handle_gameboy_capture():
         ) as g:
             g.add_frame(last_frame, 1)
         return True
-    
+
     safe_capture_operation(capture_gameboy_gif)
 
 def handle_gif_capture():
     """Record animated GIF."""
     def capture_animated_gif():
         f = pycam.open_next_image("gif")
-        
+
         i = 0
         ft = []
         pycam._mode_label.text = "RECORDING"  # pylint: disable=protected-access
         pycam.display.refresh()
-        
+
         with gifio.GifWriter(
             f,
             pycam.camera.width,
@@ -341,7 +341,7 @@ def handle_gif_capture():
                 ft.append(1 / (t1 - t0))
                 print(end=".")
                 t0 = t1
-        
+
         pycam._mode_label.text = "GIF"  # pylint: disable=protected-access
         print(f"\nfinal size {f.tell()} for {i} frames")
         print(f"average framerate {i / (t1 - t00)}fps")
@@ -349,14 +349,14 @@ def handle_gif_capture():
         f.close()
         pycam.display.refresh()
         return True
-    
+
     safe_capture_operation(capture_animated_gif)
 
 def handle_jpeg_capture():
     """Capture standard JPEG photo."""
     pycam.tone(1500, 0.05)  # Shutter-like sound
     pycam.display_message("Snap!", color=0x0000FF)
-    
+
     safe_capture_operation(pycam.capture_jpeg)
     pycam.live_preview_mode()
 
@@ -366,11 +366,11 @@ def handle_sd_card_events():
         print("SD card removed")
         pycam.unmount_sd_card()
         pycam.display.refresh()
-    
+
     if pycam.card_detect.rose:
         print("SD card inserted")
         pycam.display_message("Mounting\nSD Card", color=0xFFFFFF)
-        
+
         for _ in range(3):
             try:
                 print("Mounting card")
@@ -383,26 +383,26 @@ def handle_sd_card_events():
         else:
             pycam.display_message("SD Card\nFailed!", color=0xFF0000)
             time.sleep(0.5)
-        
+
         pycam.display.refresh()
 
 def handle_navigation_buttons():
     """Handle directional button presses for settings navigation."""
     global curr_setting
-    
+
     if pycam.up.fell:
         print("UP")
         key = SETTINGS[curr_setting]
         if key:
             print("getting", key, getattr(pycam, key))
             setattr(pycam, key, getattr(pycam, key) + 1)
-    
+
     if pycam.down.fell:
         print("DN")
         key = SETTINGS[curr_setting]
         if key:
             setattr(pycam, key, getattr(pycam, key) - 1)
-    
+
     if pycam.right.fell:
         print("RT")
         curr_setting = (curr_setting + 1) % len(SETTINGS)
@@ -411,7 +411,7 @@ def handle_navigation_buttons():
             curr_setting = (curr_setting + 1) % len(SETTINGS)
         print(SETTINGS[curr_setting])
         pycam.select_setting(SETTINGS[curr_setting])
-    
+
     if pycam.left.fell:
         print("LF")
         curr_setting = (curr_setting - 1 + len(SETTINGS)) % len(SETTINGS)
@@ -425,7 +425,7 @@ def handle_select_button():
     """Handle select button press."""
     global gallery_mode
     print("SEL")
-    
+
     if pycam.mode_text == "LAPS":
         pycam.timelapse_submode += 1
         pycam.display.refresh()
@@ -440,15 +440,15 @@ def handle_select_button():
 def handle_ok_button():
     """Handle OK button press for timelapse control or battery display."""
     global timelapse_remaining, timelapse_timestamp
-    
+
     print("OK")
-    
+
     if pycam.mode_text == "LAPS":
         if timelapse_remaining is None:  # stopped
             print("Starting timelapse")
             timelapse_remaining = pycam.timelapse_rates[pycam.timelapse_rate]
             timelapse_timestamp = time.time() + timelapse_remaining + 1
-            
+
             # Lock camera settings to prevent auto-adjustment
             saved_settings = pycam.get_camera_autosettings()
             pycam.set_camera_exposure(saved_settings["exposure"])
@@ -457,7 +457,7 @@ def handle_ok_button():
         else:  # is running, turn off
             print("Stopping timelapse")
             timelapse_remaining = None
-            
+
             # Re-enable automatic camera settings
             pycam.camera.exposure_ctrl = True
             pycam.set_camera_gain(None)  # go back to autogain
@@ -474,28 +474,28 @@ def scan_gallery_images():
     """Scan SD card for image files and return sorted list."""
     global gallery_images
     gallery_images = []
-    
+
     if not is_sd_card_available():
         print("No SD card available for gallery")
         return []
-    
+
     try:
         import os
         files = os.listdir('/sd')
-        
+
         # Filter for image files (case insensitive)
         for file in files:
             file_lower = file.lower()
-            if (file_lower.endswith('.jpg') or 
-                file_lower.endswith('.jpeg') or 
+            if (file_lower.endswith('.jpg') or
+                file_lower.endswith('.jpeg') or
                 file_lower.endswith('.gif')):
                 gallery_images.append(file)
-        
+
         # Sort files by name
         gallery_images.sort()
         print("Found " + str(len(gallery_images)) + " images: " + str(gallery_images))
         return gallery_images
-        
+
     except Exception as e:
         print("Error scanning gallery images: " + str(e))
         gallery_images = []
@@ -504,21 +504,21 @@ def scan_gallery_images():
 def enter_gallery_mode():
     """Enter gallery browsing mode."""
     global gallery_mode, gallery_index, gallery_zoom_level
-    
+
     print("Entering gallery mode")
     gallery_mode = True
     gallery_index = 0
     gallery_zoom_level = 1  # Start at zoom level 1 (scale 1 = 320x240)
-    
+
     # Scan for images
     images = scan_gallery_images()
-    
+
     if not images:
         pycam.display_message("No Photos", color=0xFFFF00)
         time.sleep(1)
         exit_gallery_mode()
         return
-    
+
     pycam.display_message("Gallery Mode", color=0x00FF00)
     time.sleep(0.5)
     display_current_image()
@@ -530,58 +530,60 @@ def cleanup_gallery_display():
         import gc
         gc.collect()
         print("Gallery display cleaned up, memory freed")
-        
+
     except Exception as e:
         print("Error during gallery cleanup: " + str(e))
 
 def exit_gallery_mode():
     """Exit gallery browsing mode and return to camera."""
     global gallery_mode, gallery_images, gallery_index, gallery_image_buffer
-    
+
     print("Exiting gallery mode")
     gallery_mode = False
-    
+
     # Clean up gallery data to free memory
     cleanup_gallery_display()
     gallery_images = []
     gallery_index = 0
-    
+
     # Clear the gallery image buffer
     if gallery_image_buffer:
         for y in range(pycam.camera.height):
             for x in range(pycam.camera.width):
                 gallery_image_buffer[x, y] = 0x0000
-    
+
     print("Attempting to restore camera mode...")
-    
+
     try:
         # Simple approach: Just remove any extra display groups and restore preview
         existing_group = pycam.display.root_group
-        
-        # Remove any gallery images we added (keep only PyCamera's base UI)
-        while len(existing_group) > 1:
-            existing_group.pop()
-        
+
+        # Remove the gallery overlay group, if it exists, without disturbing the HUD
+        if hasattr(pycam, "gallery_group"):
+            if pycam.gallery_group in existing_group:
+                existing_group.remove(pycam.gallery_group)
+            delattr(pycam, "gallery_group")
+
         # Force PyCamera to redraw its UI by calling live_preview_mode
         pycam.live_preview_mode()
-        
+
         # Force a complete display refresh to restore all UI elements
         pycam.display.refresh()
         time.sleep(0.2)  # Give more time for full refresh
-        
+
         # Force PyCamera to update all its labels and UI elements
         pycam.display.refresh()
         time.sleep(0.1)
-        
+
         # One more refresh to ensure everything is properly restored
         pycam.display.refresh()
-        
+
         print("Camera mode restored successfully")
-        
+
         # Brief confirmation message
         pycam.display_message("Camera Mode", color=0x00FF00)
         time.sleep(0.5)
-        
+
     except Exception as e:
         print("Error restoring camera mode: " + str(e))
 
@@ -593,24 +595,24 @@ def get_current_scale_factor():
 def load_image_file(filename):
     """Attempt to load an image file into a displayable bitmap."""
     global gallery_image_buffer
-    
+
     try:
         filename_lower = filename.lower()
-        
+
         if filename_lower.endswith('.jpg') or filename_lower.endswith('.jpeg'):
             print("Loading JPEG file: " + str(filename))
             bitmap = load_jpeg_file(filename)
             # JPEG files don't need a palette, so return None for palette
             return bitmap, None
-            
+
         elif filename_lower.endswith('.gif'):
             print("Loading GIF file: " + str(filename))
             return load_gif_file(filename)  # Returns (bitmap, palette)
-            
+
         else:
             print("Unsupported image format: " + str(filename))
             return None, None
-            
+
     except Exception as e:
         print("Error loading image " + str(filename) + ": " + str(e))
         return None, None
@@ -618,41 +620,38 @@ def load_image_file(filename):
 def load_jpeg_file(filename):
     """Load a JPEG file using jpegio with appropriate scaling."""
     global jpeg_decoder, pycam
-    
+
     if not jpeg_decoder:
         print("JPEG decoder not available")
         return None
-    
+
     try:
         file_path = "/sd/" + filename
-        
+
         # First, open the JPEG to get original dimensions
         original_width, original_height = jpeg_decoder.open(file_path)
         print("JPEG original dimensions: " + str(original_width) + "x" + str(original_height))
-        
+
         # Use current zoom level from gallery controls
         scale = get_current_scale_factor()
-        
+
         # Calculate scaled dimensions
         scale_factors = [1, 2, 4, 8]  # Corresponding to scale 0, 1, 2, 3
         scale_factor = scale_factors[scale]
         scaled_width = original_width // scale_factor
         scaled_height = original_height // scale_factor
-        
+
         print("JPEG scaled dimensions: " + str(scaled_width) + "x" + str(scaled_height) + " (scale=" + str(scale) + ")")
-        
+
         # Create a bitmap for the scaled image
         jpeg_bitmap = displayio.Bitmap(scaled_width, scaled_height, 65535)
-        
-        # Re-open the JPEG file before decoding (required by jpegio)
-        jpeg_decoder.open(file_path)
-        
+
         # Decode the JPEG into the bitmap with scaling
         jpeg_decoder.decode(jpeg_bitmap, scale=scale)
-        
+
         print("Successfully loaded and scaled JPEG: " + str(filename))
         return jpeg_bitmap
-        
+
     except Exception as e:
         print("Error loading JPEG: " + str(e))
         return None
@@ -661,22 +660,22 @@ def load_gif_file(filename):
     """Load a GIF file and return a bitmap using adafruit_imageload."""
     try:
         file_path = "/sd/" + filename
-        
+
         # Use adafruit_imageload for proper GIF loading
         import adafruit_imageload
-        
+
         with open(file_path, "rb") as f:
             bitmap, palette = adafruit_imageload.load(f, bitmap=displayio.Bitmap, palette=displayio.Palette)
-            
+
             # Note: adafruit_imageload doesn't support automatic scaling like jpegio
             # Large GIFs will show only the top-left portion on the display
             # For best results, use GIFs that are 240x240 or smaller
             print("GIF loaded: " + str(bitmap.width) + "x" + str(bitmap.height))
             if bitmap.width > 240 or bitmap.height > 240:
                 print("Warning: GIF is larger than display (240x240) - will be cropped")
-            
+
             return bitmap, palette
-        
+
     except Exception as e:
         print("Error loading GIF: " + str(e))
         return None, None
@@ -717,11 +716,16 @@ def display_current_image():
     # Modern CircuitPython (≥ 9.0) alternative – one line:
     # tg.anchor_point = (0.5, 0.5); tg.anchored_position = (disp_w//2, disp_h//2)
 
-    # --- replace the previous gallery layer, keep PyCamera HUD ----------------
-    root = pycam.display.root_group
-    while len(root) > 1:        # preserve the HUD layer at index 0
-        root.pop()
-    root.append(tg)
+    # --- place the bitmap in a *dedicated* overlay group so the built-in HUD is untouched
+    if not hasattr(pycam, "gallery_group"):
+        # first time we enter the gallery, create a group sitting on top of the HUD
+        pycam.gallery_group = displayio.Group()
+        pycam.display.root_group.append(pycam.gallery_group)
+
+    # clear any previous frame from the overlay and add the new one
+    while len(pycam.gallery_group):
+        pycam.gallery_group.pop()
+    pycam.gallery_group.append(tg)
 
     pycam.display.refresh()
     print(f"Displayed {current_file} – centred at ({tg.x}, {tg.y})")
@@ -729,14 +733,14 @@ def display_current_image():
 def show_image_info_fallback(filename):
     """Show image information when actual image cannot be displayed."""
     global gallery_index, gallery_images, gallery_image_buffer
-    
+
     try:
         import os
         file_path = "/sd/" + filename
         file_stats = os.stat(file_path)
         file_size = file_stats[6]  # File size in bytes
         size_kb = file_size // 1024
-        
+
         # Determine file type
         filename_lower = filename.lower()
         if filename_lower.endswith('.jpg') or filename_lower.endswith('.jpeg'):
@@ -745,21 +749,21 @@ def show_image_info_fallback(filename):
             format_info = "GIF (load failed)"
         else:
             format_info = "Unknown format"
-        
+
         info_text = str(gallery_index + 1) + "/" + str(len(gallery_images)) + "\n" + filename + "\n" + format_info + "\n" + str(size_kb) + "KB"
     except Exception as e:
         print("Error getting file stats: " + str(e))
         info_text = str(gallery_index + 1) + "/" + str(len(gallery_images)) + "\n" + filename + "\nInfo unavailable"
-    
+
     # Clear the display with a solid color background first
     if gallery_image_buffer is None:
         gallery_image_buffer = displayio.Bitmap(pycam.camera.width, pycam.camera.height, 65535)
-    
+
     # Fill with a dark background
     for y in range(pycam.camera.height):
         for x in range(pycam.camera.width):
             gallery_image_buffer[x, y] = 0x0000  # Black background
-    
+
     pycam.blit(gallery_image_buffer)
     pycam.display.refresh()  # Force display update
     pycam.display_message(info_text, color=0xFFFFFF)
@@ -767,7 +771,7 @@ def show_image_info_fallback(filename):
 def gallery_zoom_in():
     """Zoom in (smaller scale number = larger image)."""
     global gallery_zoom_level
-    
+
     if gallery_zoom_level > 1:
         gallery_zoom_level -= 1
         print("Zooming in to level " + str(gallery_zoom_level))
@@ -778,7 +782,7 @@ def gallery_zoom_in():
 def gallery_zoom_out():
     """Zoom out (larger scale number = smaller image)."""
     global gallery_zoom_level
-    
+
     if gallery_zoom_level < 3:  # Don't go beyond scale 3
         gallery_zoom_level += 1
         print("Zooming out to level " + str(gallery_zoom_level))
@@ -789,31 +793,31 @@ def gallery_zoom_out():
 def gallery_navigate(direction):
     """Navigate to previous (-1) or next (+1) image in gallery."""
     global gallery_index, gallery_images
-    
+
     if not gallery_images:
         return
-    
+
     # Clean up previous image from memory before loading new one
     try:
         import gc
         gc.collect()  # Free memory from previous image
     except Exception:
         pass
-    
+
     gallery_index += direction
-    
+
     # Wrap around at boundaries
     if gallery_index < 0:
         gallery_index = len(gallery_images) - 1
     elif gallery_index >= len(gallery_images):
         gallery_index = 0
-    
+
     display_current_image()
 
 def handle_all_buttons():
     """Process all button inputs."""
     pycam.keys_debounce()
-    
+
     if gallery_mode:
         handle_gallery_buttons()
     else:
@@ -828,27 +832,27 @@ def handle_gallery_buttons():
         time.sleep(1)
         exit_gallery_mode()
         return
-    
+
     if pycam.left.fell:
         print("Gallery: Previous image")
         gallery_navigate(-1)
-    
+
     if pycam.right.fell:
         print("Gallery: Next image")
         gallery_navigate(1)
-    
+
     if pycam.select.fell:
         handle_select_button()  # Exit gallery
-    
+
     if pycam.shutter.short_count:
         print("Gallery: Exit via shutter")
         exit_gallery_mode()
-    
+
     # Up/Down for zoom control
     if pycam.up.fell:
         print("Gallery: Zoom in")
         gallery_zoom_in()
-    
+
     if pycam.down.fell:
         print("Gallery: Zoom out")
         gallery_zoom_out()
@@ -857,25 +861,25 @@ def handle_camera_buttons():
     """Handle button inputs when in camera mode."""
     handle_shutter_button()
     handle_navigation_buttons()
-    
+
     if pycam.select.fell:
         handle_select_button()
-    
+
     if pycam.ok.fell:
         handle_ok_button()
 
 def init_camera_system():
     """Initialize camera and related systems."""
     global pycam, last_frame, onionskin, last_recorded_time, gallery_image_buffer, jpeg_decoder
-    
+
     print("Initializing camera system...")
     pycam = adafruit_pycamera.PyCamera()
-    
+
     # Initialize frame buffers
     last_frame = displayio.Bitmap(pycam.camera.width, pycam.camera.height, 65535)
     onionskin = displayio.Bitmap(pycam.camera.width, pycam.camera.height, 65535)
     gallery_image_buffer = displayio.Bitmap(pycam.camera.width, pycam.camera.height, 65535)
-    
+
     # Initialize JPEG decoder for gallery
     try:
         jpeg_decoder = jpegio.JpegDecoder()
@@ -883,36 +887,36 @@ def init_camera_system():
     except Exception as e:
         print("JPEG decoder initialization failed: " + str(e))
         jpeg_decoder = None
-    
+
     # Initialize timing
     last_recorded_time = time.time()
-    
+
     print("Camera system ready!")
 
 def main():
     """Main application entry point."""
     print("Starting Adafruit MEMENTO Camera...")
-    
+
     # Initialize all systems
     setup_wifi_and_time()
     init_battery_monitoring()
     init_camera_system()
-    
+
     print("Entering main loop...")
-    
+
     # Main application loop
     while True:
         # Update battery status periodically
         update_battery_status()
-        
+
         # Only handle camera modes and preview when not in gallery mode
         if not gallery_mode:
             # Handle camera modes and preview
             handle_camera_modes()
-        
+
         # Process user input
         handle_all_buttons()
-        
+
         # Handle SD card events (but not when in gallery mode to avoid conflicts)
         if not gallery_mode:
             handle_sd_card_events()
