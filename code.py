@@ -353,12 +353,28 @@ def handle_gif_capture():
     safe_capture_operation(capture_animated_gif)
 
 def handle_jpeg_capture():
-    """Capture standard JPEG photo."""
-    pycam.tone(1500, 0.05)  # Shutter-like sound
+    """Capture a standard JPEG photo and fire the LED flash every time."""
+    # --- Turn on the white LED flash ---------------------------------------
+    prev_led_level = getattr(pycam, "led_level", 8)
+    prev_led_color = getattr(pycam, "led_color", 0xFFFFFF)
+
+    pycam.led_color = 0xFFFFFF     # white flash
+    pycam.led_level = 8            # full brightness (0–8 on Memento)
+
+    # short settle time so the LED reaches full brightness
+    time.sleep(0.05)
+
+    # --- Shutter feedback ---------------------------------------------------
+    pycam.tone(1500, 0.05)  # shutter‑like beep
     pycam.display_message("Snap!", color=0x0000FF)
 
+    # --- Take the picture ---------------------------------------------------
     safe_capture_operation(pycam.capture_jpeg)
     pycam.live_preview_mode()
+
+    # --- Restore previous LED settings --------------------------------------
+    pycam.led_level = prev_led_level
+    pycam.led_color = prev_led_color
 
 def handle_sd_card_events():
     """Handle SD card insertion and removal."""
